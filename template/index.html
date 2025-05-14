@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResNet50 Feature Map Visualization Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .feature-map img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .feature-map img:hover {
+            transform: scale(1.02);
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #CBD5E0 #EDF2F7;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #EDF2F7;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #CBD5E0;
+            border-radius: 4px;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            background-color: #2D3748;
+            color: white;
+            text-align: center;
+            padding: 4px 8px;
+            border-radius: 4px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 0.875rem;
+            white-space: nowrap;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        .form-select {
+            @apply w-full px-4 py-2.5 text-base border rounded-md text-gray-700 bg-white;
+            min-height: 2.75rem;
+        }
+        .form-select option {
+            @apply py-2 text-base;
+        }
+        .form-label {
+            @apply block text-base font-medium text-gray-700 mb-1;
+        }
+        .form-checkbox-label {
+            @apply flex items-center text-base text-gray-700 cursor-pointer;
+        }
+        .form-checkbox {
+            @apply w-5 h-5 text-blue-500 rounded border-gray-300 focus:ring-blue-500;
+            margin-right: 0.5rem;
+        }
+        .form-number {
+            @apply px-3 py-2 text-base border rounded-md text-gray-700;
+            min-height: 2.5rem;
+        }
+        .section-title {
+            @apply text-xl font-semibold text-gray-800 mb-4;
+        }
+        .option-group {
+            @apply p-4 bg-white rounded-lg shadow-sm mb-4;
+        }
+        .tooltip .tooltiptext {
+            @apply text-base;
+            min-width: 120px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 10% auto;
+            padding: 2rem;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .info-icon {
+            @apply inline-flex items-center justify-center w-5 h-5 ml-2 text-sm text-blue-500 bg-blue-100 rounded-full cursor-pointer hover:bg-blue-200;
+        }
+        .close-modal {
+            position: absolute;
+            right: 1rem;
+            top: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+        .close-modal:hover {
+            color: #000;
+        }
+        .log-entry {
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+        }
+        .log-info {
+            background-color: #E8F5E9;
+            color: #1B5E20;
+        }
+        .log-warning {
+            background-color: #FFF3E0;
+            color: #E65100;
+        }
+        .log-error {
+            background-color: #FFEBEE;
+            color: #B71C1C;
+        }
+        .log-timestamp {
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="modalTitle" class="mb-4 text-xl font-bold"></h2>
+            <div id="modalContent" class="max-w-none prose"></div>
+        </div>
+    </div>
+    <div class="container px-4 py-6 mx-auto max-w-7xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800">ResNet50 Feature Map Visualization Tool</h1>
+            <p class="mt-2 text-gray-600">Upload an image to visualize feature maps across different layers</p>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <!-- Left Column: Controls -->
+            <div class="space-y-6">
+                <!-- Model Information -->
+                <div class="p-6 bg-white rounded-lg shadow-sm">
+                    <h2 class="mb-4 text-xl font-semibold text-gray-800">Model Information</h2>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="p-4 bg-gray-50 rounded-lg">
+                                <h3 class="font-medium text-gray-700">Total Parameters</h3>
+                                <p class="font-mono text-2xl">{{ '{:,}'.format(model_info.total_params) }}</p>
+                            </div>
+                            <div class="p-4 bg-gray-50 rounded-lg">
+                                <h3 class="font-medium text-gray-700">Trainable Parameters</h3>
+                                <p class="font-mono text-2xl">{{ '{:,}'.format(model_info.trainable_params) }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h3 class="mb-2 font-medium text-gray-700">Layer Structure</h3>
+                            <div class="overflow-y-auto max-h-60">
+                                <table class="min-w-full">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-2 text-sm font-medium text-left text-gray-700">Layer</th>
+                                            <th class="px-4 py-2 text-sm font-medium text-left text-gray-700">Type</th>
+                                            <th class="px-4 py-2 text-sm font-medium text-right text-gray-700">Parameters</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200">
+                                        {% for layer in model_info.layers %}
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-2 text-sm text-gray-900">{{ layer.name }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-600">{{ layer.type }}</td>
+                                            <td class="px-4 py-2 font-mono text-sm text-right text-gray-900">
+                                                {{ '{:,}'.format(layer.params) }}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Upload -->
+                <div class="p-6 bg-white rounded-lg shadow-sm">
+                    <h2 class="mb-4 text-xl font-semibold text-gray-800">Image Upload</h2>
+                    <div class="p-4 text-center rounded-lg border-2 border-gray-300 border-dashed transition-colors hover:border-blue-500">
+                        <label for="imageUpload" class="block cursor-pointer">
+                            <div id="uploadPlaceholder" class="block">
+                                <svg class="mx-auto w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                </svg>
+                                <span class="block mt-2 text-base text-gray-600">Click or drag image here</span>
+                            </div>
+                            <div id="previewContainer" class="hidden">
+                                <img id="imagePreview" class="mx-auto max-h-48 rounded-lg" alt="Image preview">
+                                <p id="fileName" class="mt-2 text-sm text-gray-600"></p>
+                                <button type="button" id="removeImage" class="px-3 py-1 mt-2 text-sm text-red-500 rounded-md border border-red-500 hover:text-red-700 hover:bg-red-50">
+                                    Remove Image
+                                </button>
+                            </div>
+                        </label>
+                        <input type="file" id="imageUpload" name="image" accept="image/*" class="hidden">
+                    </div>
+                </div>
+
+                <form id="visualizationForm" class="space-y-6">
+                <!-- Visualization Technique Tabs -->
+                <div class="p-6 bg-white rounded-lg shadow-sm">
+                    <h2 class="mb-4 text-xl font-semibold text-gray-800">Visualization Technique</h2>
+                    
+                    <!-- Technique selector tabs -->
+                    <div class="flex mb-6 border-b">
+                        <button type="button" class="px-4 py-2 text-blue-600 border-b-2 border-blue-600 technique-tab active"
+                                data-target="featureMapsContent">
+                            Feature Maps
+                        </button>
+                        <button type="button" class="px-4 py-2 text-gray-600 hover:text-blue-600 technique-tab"
+                                data-target="activationMaxContent">
+                            Activation Maximization
+                        </button>
+                        <button type="button" class="px-4 py-2 text-gray-600 hover:text-blue-600 technique-tab"
+                                data-target="lrpContent">
+                            LRP
+                        </button>
+                        <button type="button" class="px-4 py-2 text-gray-600 hover:text-blue-600 technique-tab"
+                                data-target="gradCamContent">
+                            Grad-CAM
+                        </button>
+                    </div>
+                    
+                    <!-- Tab content containers -->
+                    <!-- 1. Feature Maps (original visualization) -->
+                    <div id="featureMapsContent" class="technique-content">
+                        <!-- Preprocessing Options (Original content) -->
+                        <div class="space-y-4">
+                            <!-- Resize Options -->
+                            <div class="p-4 rounded-lg border option-group">
+                                <div class="flex justify-between items-center mb-3">
+                                    <label class="form-checkbox-label">
+                                        <input type="checkbox" id="useResize" checked class="form-checkbox" title="Enable resize">
+                                        <span class="ml-2">Resize</span>
+                                    </label>
+                                    <button type="button" class="info-icon" onclick="showInfo('resize')">?</button>
+                                </div>
+                                <div id="resizeOptions" class="pl-8 space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Strategy</label>
+                                        <select id="resizeStrategy" class="mt-1 form-select" title="Select resize strategy">
+                                            <option value="simple">Simple Resize</option>
+                                            <option value="preserve_aspect">Preserve Aspect Ratio</option>
+                                            <option value="pad">Pad and Resize</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Size</label>
+                                        <div class="flex items-center space-x-2">
+                                            <input type="number" id="resizeSize" value="256" min="32" max="1024" 
+                                                class="w-24 form-number" title="Resize size">
+                                            <span class="text-sm text-gray-600">pixels</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Crop Options -->
+                            <div class="p-4 rounded-lg border option-group">
+                                <div class="flex justify-between items-center mb-3">
+                                    <label class="form-checkbox-label">
+                                        <input type="checkbox" id="useCrop" checked class="form-checkbox" title="Enable crop">
+                                        <span class="ml-2">Crop</span>
+                                    </label>
+                                    <button type="button" class="info-icon" onclick="showInfo('crop')">?</button>
+                                </div>
+                                <div id="cropOptions" class="pl-8 space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Strategy</label>
+                                        <select id="cropStrategy" class="mt-1 form-select" title="Select crop strategy">
+                                            <option value="center">Center Crop</option>
+                                            <option value="random">Random Crop</option>
+                                            <option value="five">Five Crop</option>
+                                            <option value="ten">Ten Crop</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Size</label>
+                                        <div class="flex items-center space-x-2">
+                                            <input type="number" id="cropSize" value="224" min="32" max="1024" 
+                                                  class="w-24 form-number" title="Crop size">
+                                            <span class="text-sm text-gray-600">pixels</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Normalization Options -->
+                            <div class="p-4 rounded-lg border option-group">
+                                <div class="flex justify-between items-center mb-3">
+                                    <label class="form-checkbox-label">
+                                        <input type="checkbox" id="useNormalize" checked class="form-checkbox" title="Enable normalization">
+                                        <span class="ml-2">Normalization</span>
+                                    </label>
+                                    <button type="button" class="info-icon" onclick="showInfo('normalize')">?</button>
+                                </div>
+                                <div id="normalizeOptions" class="pl-8 space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Strategy</label>
+                                        <select id="normalizeStrategy" class="mt-1 form-select" title="Select normalization strategy">
+                                            <option value="imagenet">ImageNet (Mean=[0.485, 0.456, 0.406], Std=[0.229, 0.224, 0.225])</option>
+                                            <option value="simple">Simple (Mean=0.5, Std=0.5)</option>
+                                            <option value="custom">Custom Values</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div id="customNormalizeOptions" class="mt-3 space-y-2 hidden">
+                                        <label class="block text-sm font-medium text-gray-700">Custom Mean and Std Values</label>
+                                        <div class="grid grid-cols-3 gap-2 mb-1">
+                                            <div class="text-center text-xs font-medium text-gray-500">R Channel</div>
+                                            <div class="text-center text-xs font-medium text-gray-500">G Channel</div>
+                                            <div class="text-center text-xs font-medium text-gray-500">B Channel</div>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-3 gap-2 mb-1">
+                                            <input type="number" placeholder="R" value="0.5" step="0.001" class="w-full form-number">
+                                            <input type="number" placeholder="G" value="0.5" step="0.001" class="w-full form-number">
+                                            <input type="number" placeholder="B" value="0.5" step="0.001" class="w-full form-number">
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-3 gap-2">
+                                            <input type="number" value="0.5" step="0.001" class="w-full form-number" title="R Std">
+                                            <input type="number" value="0.5" step="0.001" class="w-full form-number" title="G Std">
+                                            <input type="number" value="0.5" step="0.001" class="w-full form-number" title="B Std">
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-3 gap-2 mb-1">
+                                            <div class="text-center text-xs font-medium text-gray-500">R Std</div>
+                                            <div class="text-center text-xs font-medium text-gray-500">G Std</div>
+                                            <div class="text-center text-xs font-medium text-gray-500">B Std</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Data Augmentation Options -->
+                            <div class="p-4 rounded-lg border option-group">
+                                <div class="flex justify-between items-center mb-3">
+                                    <label class="form-checkbox-label">
+                                        <input type="checkbox" id="useAugmentation" class="form-checkbox" title="Enable data augmentation">
+                                        <span class="ml-2">Data Augmentation</span>
+                                    </label>
+                                    <button type="button" class="info-icon" onclick="showInfo('augmentation')">?</button>
+                                </div>
+                                <div id="augmentationOptions" class="pl-8 space-y-2">
+                                    <p class="text-sm text-gray-600">Select augmentation techniques to apply:</p>
+                                    
+                                    <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="colorJitter" class="mr-2 form-checkbox" disabled>
+                                            <span>Color Jitter</span>
+                                        </label>
+                                        
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="randomRotation" class="mr-2 form-checkbox" disabled>
+                                            <span>Random Rotation</span>
+                                        </label>
+                                        
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="randomHorizontalFlip" class="mr-2 form-checkbox" disabled>
+                                            <span>Horizontal Flip</span>
+                                        </label>
+                                        
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="randomVerticalFlip" class="mr-2 form-checkbox" disabled>
+                                            <span>Vertical Flip</span>
+                                        </label>
+                                        
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="randomGrayscale" class="mr-2 form-checkbox" disabled>
+                                            <span>Random Grayscale</span>
+                                        </label>
+                                        
+                                        <label class="flex items-center text-sm">
+                                            <input type="checkbox" id="gaussianBlur" class="mr-2 form-checkbox" disabled>
+                                            <span>Gaussian Blur</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Rest of the preprocessing options... (Keep original code) -->
+                        </div>
+                    </div>
+                    
+                    <!-- 2. Activation Maximization Tab -->
+                    <div id="activationMaxContent" class="hidden technique-content">
+                        <div class="space-y-4">
+                            <div class="p-4 rounded-lg border">
+                                <h3 class="mb-2 text-base font-medium text-gray-800">Activation Maximization Options</h3>
+                                <p class="mb-4 text-sm text-gray-600">
+                                    Generate images that maximally activate specific neurons or channels to visualize what patterns they detect.
+                                </p>
+                                
+                                <div class="space-y-4">
+                                    <!-- Layer Selection -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Target Layer</label>
+                                        <select id="amLayerSelect" class="mt-1 form-select" title="Select target layer for activation maximization">
+                                            <option value="conv1">conv1 (64 channels)</option>
+                                            <option value="l1">layer1 (256 channels)</option>
+                                            <option value="l2">layer2 (512 channels)</option>
+                                            <option value="l3">layer3 (1024 channels)</option>
+                                            <option value="l4">layer4 (2048 channels)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Channel Selection -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Target Channel</label>
+                                        <input type="number" id="amChannelIdx" value="0" min="0" max="63" class="mt-1 w-full form-number" title="Channel index to visualize" placeholder="Channel index">
+                                        <p class="mt-1 text-xs text-gray-500">
+                                            The specific channel/filter to visualize in the selected layer.
+                                        </p>
+                                    </div>
+                                    
+                                    <!-- Optimization Parameters -->
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700">Iterations</label>
+                                            <input type="number" id="amIterations" value="150" min="50" max="500" 
+                                                class="mt-1 w-full form-number" title="Number of optimization iterations" placeholder="Iterations">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700">Learning Rate</label>
+                                            <input type="number" id="amLearningRate" value="0.1" min="0.01" max="1" step="0.01"
+                                                class="mt-1 w-full form-number" title="Learning rate for optimization" placeholder="Learning rate">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 3. Layer-wise Relevance Propagation Tab -->
+                    <div id="lrpContent" class="hidden technique-content">
+                        <div class="space-y-4">
+                            <div class="p-4 rounded-lg border">
+                                <h3 class="mb-2 text-base font-medium text-gray-800">LRP Options</h3>
+                                <p class="mb-4 text-sm text-gray-600">
+                                    Show which input pixels contribute most to specific activations using backpropagation.
+                                </p>
+                                
+                                <div class="space-y-4">
+                                    <!-- Layer Selection -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Target Layer</label>
+                                        <select id="lrpLayerSelect" class="mt-1 form-select" title="Select target layer for LRP visualization">
+                                            <option value="conv1">conv1 (64 channels)</option>
+                                            <option value="l1">layer1 (256 channels)</option>
+                                            <option value="l2">layer2 (512 channels)</option>
+                                            <option value="l3">layer3 (1024 channels)</option>
+                                            <option value="l4">layer4 (2048 channels)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Attribution Target -->
+                                    <div>
+                                        <label class="mb-2 form-checkbox-label">
+                                            <input type="radio" name="lrpTarget" value="channel" checked class="mr-2">
+                                            <span>Target Specific Channel</span>
+                                        </label>
+                                        <div id="lrpChannelOptions">
+                                            <input type="number" id="lrpChannelIdx" value="0" min="0" max="63" class="mt-1 w-full form-number"
+                                                   title="Channel index for LRP" placeholder="Channel index">
+                                            <p class="mt-1 text-xs text-gray-500">
+                                                Channel to analyze relevance for.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="mb-2 form-checkbox-label">
+                                            <input type="radio" name="lrpTarget" value="class" class="mr-2">
+                                            <span>Target Specific Class</span>
+                                        </label>
+                                        <div id="lrpClassOptions" class="hidden">
+                                            <input type="number" id="lrpClassIdx" value="0" min="0" max="999" class="mt-1 w-full form-number"
+                                                   title="ImageNet class ID for LRP" placeholder="Class ID">
+                                            <p class="mt-1 text-xs text-gray-500">
+                                                ImageNet class ID to analyze relevance for.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 4. Grad-CAM Tab -->
+                    <div id="gradCamContent" class="hidden technique-content">
+                        <div class="space-y-4">
+                            <div class="p-4 rounded-lg border">
+                                <h3 class="mb-2 text-base font-medium text-gray-800">Grad-CAM Options</h3>
+                                <p class="mb-4 text-sm text-gray-600">
+                                    Visualize important regions for classification decisions through gradient-weighted activations.
+                                </p>
+                                
+                                <div class="space-y-4">
+                                    <!-- Layer Selection -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Target Layer</label>
+                                        <select id="gradCamLayerSelect" class="mt-1 form-select" title="Select target layer for Grad-CAM">
+                                            <option value="l4">layer4 (Final layer)</option>
+                                            <option value="l3">layer3</option>
+                                            <option value="l2">layer2</option>
+                                            <option value="l1">layer1</option>
+                                            <option value="conv1">conv1</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Class Selection -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Target Class</label>
+                                        <div class="flex items-center">
+                                            <div class="flex-1">
+                                                <input type="number" id="gradCamClassIdx" min="0" max="999" class="mt-1 w-full form-number"
+                                                       title="ImageNet class ID for Grad-CAM" placeholder="Class ID (optional)">
+                                            </div>
+                                            <div class="ml-2">
+                                                <button type="button" id="gradCamUseTopPrediction" class="px-3 py-2 text-sm text-blue-600 rounded border border-blue-600 hover:bg-blue-50">
+                                                    Use Top Prediction
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p class="mt-1 text-xs text-gray-500">
+                                            ImageNet class ID to highlight. Leave empty to use the model's top prediction.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </form>
+            </div>
+
+            <!-- Right Column: Visualization and Results -->
+            <div class="space-y-6">
+                <!-- Visualization Settings -->
+                <div class="p-6 bg-white rounded-lg shadow-sm">
+                    <h2 class="mb-4 text-xl font-semibold text-gray-800">Visualization Settings</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Start Channel</label>
+                            <input type="number" id="startChannel" value="0" min="0" 
+                                   class="mt-1 w-full form-number" title="Start channel">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Grid Size</label>
+                            <div class="flex space-x-2">
+                                <input type="number" id="gridRows" value="4" min="1" max="8" 
+                                       class="mt-1 w-full form-number" placeholder="Rows" title="Grid rows">
+                                <input type="number" id="gridCols" value="4" min="1" max="8" 
+                                       class="mt-1 w-full form-number" placeholder="Columns" title="Grid columns">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Normalization Method</label>
+                            <select id="normalizeMethod" class="mt-1 w-full form-select" title="Select normalization method">
+                                <option value="minmax">Min-Max Normalization</option>
+                                <option value="adaptive">Adaptive Histogram Equalization</option>
+                                <option value="contrast">Contrast Stretching</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Color Map</label>
+                            <select id="colormap" class="mt-1 w-full form-select" title="Select color map">
+                                <option value="viridis">Viridis</option>
+                                <option value="plasma">Plasma</option>
+                                <option value="inferno">Inferno</option>
+                                <option value="magma">Magma</option>
+                                <option value="cividis">Cividis</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layer Selection -->
+                <div class="p-6 bg-white rounded-lg shadow-sm">
+                    <h2 class="mb-4 text-xl font-semibold text-gray-800">Layer Selection</h2>
+                    <div class="overflow-y-auto max-h-60 custom-scrollbar">
+                        {% for layer_name, info in layer_info.items() %}
+                        <label class="flex items-center p-2 rounded-md hover:bg-gray-50">
+                            <input type="checkbox" name="selectedLayers" value="{{ layer_name }}" checked 
+                                   class="form-checkbox" title="Select layer">
+                            <span class="ml-2">
+                                <span class="font-medium">{{ layer_name }}</span>
+                                <span class="text-sm text-gray-500">({{ info.spatial_size }}, {{ info.channels }} channels)</span>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Processing Logs -->
+                <div class="p-6 bg-white rounded-lg shadow-sm">
+                    <h2 class="mb-4 text-xl font-semibold text-gray-800">Processing Logs</h2>
+                    <div id="logContainer" class="overflow-y-auto p-4 h-40 bg-gray-50 rounded-lg border border-gray-200">
+                        <div id="logs" class="space-y-2 font-mono text-sm"></div>
+                    </div>
+                </div>
+
+                <!-- Generate Button -->
+                <div class="text-center">
+                    <button type="button" id="visualizeBtn" class="px-8 py-3 text-white bg-blue-500 rounded-lg transition transform hover:bg-blue-600 hover:scale-105">
+                        Generate Visualization
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Display -->
+        <div id="results" class="mt-8 space-y-8">
+            <!-- Export Controls -->
+            <div class="p-4 mb-4 bg-white rounded-lg shadow-sm">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-gray-800">Export Options</h3>
+                    <div class="space-x-2">
+                        <button onclick="exportAsJSON()" class="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600">
+                            Export as JSON
+                        </button>
+                        <button onclick="exportAsCSV()" class="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600">
+                            Export as CSV
+                        </button>
+                        <button onclick="downloadAllImages()" class="px-4 py-2 text-white bg-purple-500 rounded hover:bg-purple-600">
+                            Download All Images
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add loading spinner -->
+    <div id="loading" class="flex hidden fixed inset-0 z-50 justify-center items-center bg-black bg-opacity-30">
+        <div class="loading-spinner"></div>
+        <span class="ml-4 text-lg text-white">Processing...</span>
+    </div>
+
+    <script type="application/json" id="layerInfoData">
+        {{ layer_info|tojson|safe }}
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+
+    <script>
+        // Global variables to store state
+        let currentResults = null;
+        
+        // DOM Elements - cache them when document is ready
+        let imageUpload, uploadPlaceholder, previewContainer, imagePreview, fileName, removeImage, 
+            logsContainer, loadingElement, visualizeBtn, resultsContainer;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cache DOM elements
+            imageUpload = document.getElementById('imageUpload');
+            uploadPlaceholder = document.getElementById('uploadPlaceholder');
+            previewContainer = document.getElementById('previewContainer');
+            imagePreview = document.getElementById('imagePreview');
+            fileName = document.getElementById('fileName');
+            removeImage = document.getElementById('removeImage');
+            logsContainer = document.getElementById('logs');
+            loadingElement = document.getElementById('loading');
+            visualizeBtn = document.getElementById('visualizeBtn');
+            resultsContainer = document.getElementById('results');
+            
+            // Initialize UI state
+            initializeOptions();
+            updateStartChannelMax();
+            setupEventListeners();
+            setupTabs();
+            
+            console.log('DOM fully loaded and parsed. UI initialized.');
+        });
+        
+        // Initialize all form options
+        function initializeOptions() {
+            // Set resize options state
+            const useResize = document.getElementById('useResize');
+            const resizeOptions = document.getElementById('resizeOptions');
+            resizeOptions.style.opacity = useResize.checked ? '1' : '0.5';
+            resizeOptions.style.pointerEvents = useResize.checked ? 'auto' : 'none';
+            
+            // Set crop options state
+            const useCrop = document.getElementById('useCrop');
+            const cropOptions = document.getElementById('cropOptions');
+            if (useCrop && cropOptions) {
+                cropOptions.style.opacity = useCrop.checked ? '1' : '0.5';
+                cropOptions.style.pointerEvents = useCrop.checked ? 'auto' : 'none';
+            }
+            
+            // Set augmentation options state
+            const useAugmentation = document.getElementById('useAugmentation');
+            const augmentationOptions = document.getElementById('augmentationOptions');
+            if (useAugmentation && augmentationOptions) {
+                augmentationOptions.style.opacity = useAugmentation.checked ? '1' : '0.5';
+                augmentationOptions.style.pointerEvents = useAugmentation.checked ? 'auto' : 'none';
+            }
+            
+            // Set normalization options state
+            const useNormalize = document.getElementById('useNormalize');
+            const normalizeOptions = document.getElementById('normalizeOptions');
+            if (useNormalize && normalizeOptions) {
+                normalizeOptions.style.opacity = useNormalize.checked ? '1' : '0.5';
+                normalizeOptions.style.pointerEvents = useNormalize.checked ? 'auto' : 'none';
+            }
+            
+            // Set custom normalization options visibility
+            const normalizeStrategy = document.getElementById('normalizeStrategy');
+            const customOptions = document.getElementById('customNormalizeOptions');
+            if (normalizeStrategy && customOptions) {
+                customOptions.style.display = normalizeStrategy.value === 'custom' ? 'block' : 'none';
+            }
+            
+            // Setup layer-specific max channels
+            setupLayerChannelLimits();
+        }
+        
+        // Setup event listeners for visualization technique tabs
+        function setupTabs() {
+            console.log('Setting up visualization tabs');
+            const tabs = document.querySelectorAll('.technique-tab');
+            const contents = document.querySelectorAll('.technique-content');
+            
+            console.log('Found tabs:', tabs.length);
+            console.log('Found content sections:', contents.length);
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    console.log('Tab clicked:', tab.textContent.trim(), 'target:', tab.getAttribute('data-target'));
+                    
+                    // Remove active class from all tabs
+                    tabs.forEach(t => {
+                        t.classList.remove('active', 'border-b-2', 'border-blue-600', 'text-blue-600');
+                        t.classList.add('text-gray-600');
+                    });
+                    
+                    // Add active class to clicked tab
+                    tab.classList.remove('text-gray-600');
+                    tab.classList.add('active', 'border-b-2', 'border-blue-600', 'text-blue-600');
+                    
+                    // Hide all content sections
+                    contents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    
+                    // Show relevant content
+                    const targetId = tab.getAttribute('data-target');
+                    const targetElement = document.getElementById(targetId);
+                    if (targetElement) {
+                        targetElement.classList.remove('hidden');
+                        console.log('Showing content section:', targetId);
+                    } else {
+                        console.error('Target element not found:', targetId);
+                    }
+                    
+                    // Update button text based on selected tab
+                    updateButtonTextForTab(targetId);
+                });
+            });
+            
+            // Setup LRP target radio buttons
+            const lrpTargetRadios = document.querySelectorAll('input[name="lrpTarget"]');
+            lrpTargetRadios.forEach(radio => {
+                radio.addEventListener('change', () => {
+                    if (radio.value === 'channel') {
+                        document.getElementById('lrpChannelOptions').classList.remove('hidden');
+                        document.getElementById('lrpClassOptions').classList.add('hidden');
+                    } else {
+                        document.getElementById('lrpChannelOptions').classList.add('hidden');
+                        document.getElementById('lrpClassOptions').classList.remove('hidden');
+                    }
+                });
+            });
+            
+            // Setup Grad-CAM "Use top prediction" button
+            const topPredButton = document.getElementById('gradCamUseTopPrediction');
+            if (topPredButton) {
+                topPredButton.addEventListener('click', () => {
+                    document.getElementById('gradCamClassIdx').value = '';
+                });
+            }
+        }
+        
+        // Update button text based on selected visualization technique
+        function updateButtonTextForTab(tabId) {
+            const visualizeBtn = document.getElementById('visualizeBtn');
+            
+            switch(tabId) {
+                case 'featureMapsContent':
+                    visualizeBtn.textContent = 'Generate Feature Maps';
+                    break;
+                case 'activationMaxContent':
+                    visualizeBtn.textContent = 'Generate Activation Maximization';
+                    break;
+                case 'lrpContent':
+                    visualizeBtn.textContent = 'Generate LRP Visualization';
+                    break;
+                case 'gradCamContent':
+                    visualizeBtn.textContent = 'Generate Grad-CAM';
+                    break;
+                default:
+                    visualizeBtn.textContent = 'Generate Visualization';
+            }
+        }
+        
+        // Set up layer-specific channel limits for different visualization techniques
+        function setupLayerChannelLimits() {
+            const layerChannelMap = {
+                'conv1': 64,
+                'l1': 256,
+                'l2': 512, 
+                'l3': 1024,
+                'l4': 2048
+            };
+            
+            // For Activation Maximization
+            const amLayerSelect = document.getElementById('amLayerSelect');
+            if (amLayerSelect) {
+                amLayerSelect.addEventListener('change', function() {
+                    const maxChannels = layerChannelMap[this.value];
+                    const channelInput = document.getElementById('amChannelIdx');
+                    if (channelInput) {
+                        channelInput.max = maxChannels - 1;
+                        channelInput.value = Math.min(
+                            parseInt(channelInput.value, 10),
+                            maxChannels - 1
+                        );
+                    }
+                });
+            }
+            
+            // For LRP
+            const lrpLayerSelect = document.getElementById('lrpLayerSelect');
+            if (lrpLayerSelect) {
+                lrpLayerSelect.addEventListener('change', function() {
+                    const maxChannels = layerChannelMap[this.value];
+                    const channelInput = document.getElementById('lrpChannelIdx');
+                    if (channelInput) {
+                        channelInput.max = maxChannels - 1;
+                        channelInput.value = Math.min(
+                            parseInt(channelInput.value, 10),
+                            maxChannels - 1
+                        );
+                    }
+                });
+            }
+        }
+        
+        // Setup all event listeners
+        function setupEventListeners() {
+            // Image upload
+            imageUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleFileUpload(file);
+            });
+            
+            // Drag and drop
+            const dropZone = document.querySelector('.border-dashed');
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-blue-500');
+            });
+            
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-blue-500');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-blue-500');
+                const file = e.dataTransfer.files[0];
+                if (file) handleFileUpload(file);
+            });
+            
+            // Remove image
+            removeImage.addEventListener('click', () => {
+                imageUpload.value = '';
+                imagePreview.src = '';
+                fileName.textContent = '';
+                previewContainer.classList.add('hidden');
+                uploadPlaceholder.classList.remove('hidden');
+            });
+            
+            // Option toggles
+            const useResize = document.getElementById('useResize');
+            if (useResize) {
+                useResize.addEventListener('change', function() {
+                    const resizeOptions = document.getElementById('resizeOptions');
+                    resizeOptions.style.opacity = this.checked ? '1' : '0.5';
+                    resizeOptions.style.pointerEvents = this.checked ? 'auto' : 'none';
+                });
+            }
+
+            const useCrop = document.getElementById('useCrop');
+            if (useCrop) {
+                useCrop.addEventListener('change', function() {
+                    const cropOptions = document.getElementById('cropOptions');
+                    cropOptions.style.opacity = this.checked ? '1' : '0.5';
+                    cropOptions.style.pointerEvents = this.checked ? 'auto' : 'none';
+                });
+            }
+
+            const useAugmentation = document.getElementById('useAugmentation');
+            if (useAugmentation) {
+                useAugmentation.addEventListener('change', function() {
+                    const augmentationOptions = document.getElementById('augmentationOptions');
+                    augmentationOptions.style.opacity = this.checked ? '1' : '0.5';
+                    augmentationOptions.style.pointerEvents = this.checked ? 'auto' : 'none';
+                    
+                    // Disable checkboxes when augmentation is off
+                    const checkboxes = augmentationOptions.querySelectorAll('input[type="checkbox"]');
+                    checkboxes.forEach(checkbox => {
+                        checkbox.disabled = !this.checked;
+                    });
+                });
+            }
+
+            const useNormalize = document.getElementById('useNormalize');
+            if (useNormalize) {
+                useNormalize.addEventListener('change', function() {
+                    const normalizeOptions = document.getElementById('normalizeOptions');
+                    normalizeOptions.style.opacity = this.checked ? '1' : '0.5';
+                    normalizeOptions.style.pointerEvents = this.checked ? 'auto' : 'none';
+                    
+                    // Disable all normalization inputs
+                    const inputs = normalizeOptions.querySelectorAll('input, select');
+                    inputs.forEach(input => {
+                        input.disabled = !this.checked;
+                    });
+                });
+            }
+            
+            // Normalization strategy toggle
+            const normalizeStrategy = document.getElementById('normalizeStrategy');
+            if (normalizeStrategy) {
+                normalizeStrategy.addEventListener('change', function() {
+                    const customOptions = document.getElementById('customNormalizeOptions');
+                    customOptions.style.display = this.value === 'custom' ? 'block' : 'none';
+                });
+            }
+            
+            // Grid size update
+            const gridRows = document.getElementById('gridRows');
+            if (gridRows) {
+                gridRows.addEventListener('change', updateStartChannelMax);
+            }
+            
+            const gridCols = document.getElementById('gridCols');
+            if (gridCols) {
+                gridCols.addEventListener('change', updateStartChannelMax);
+            }
+            
+            // The main visualization button
+            visualizeBtn.addEventListener('click', function() {
+                console.log('Generate button clicked');
+                
+                // Check if we have an image
+                if (!imageUpload.files || !imageUpload.files[0]) {
+                    alert('Please select an image first');
+                    console.error('No image selected');
+                    return;
+                }
+                
+                // Form validation passed, proceed with visualization
+                generateVisualization();
+            });
+            
+            console.log('All event listeners attached successfully');
+        }
+        
+        // Handle file upload
+        function handleFileUpload(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                fileName.textContent = file.name;
+                previewContainer.classList.remove('hidden');
+                uploadPlaceholder.classList.add('hidden');
+                console.log('Image preview updated: ' + file.name);
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // Show loading spinner
+        function showLoading() {
+            loadingElement.classList.remove('hidden');
+            console.log('Loading spinner shown');
+        }
+        
+        // Hide loading spinner
+        function hideLoading() {
+            loadingElement.classList.add('hidden');
+            console.log('Loading spinner hidden');
+        }
+        
+        // Update max channel based on selected layers
+        function updateStartChannelMax() {
+            const selectedLayers = Array.from(document.querySelectorAll('input[name="selectedLayers"]:checked'));
+            if (selectedLayers.length > 0) {
+                const layerInfoData = JSON.parse(document.getElementById('layerInfoData').textContent);
+                const maxChannels = Math.max(...selectedLayers.map(cb => layerInfoData[cb.value].channels));
+                const gridRowsInput = document.getElementById('gridRows');
+                const gridColsInput = document.getElementById('gridCols');
+                const startChannelInput = document.getElementById('startChannel');
+                
+                if (gridRowsInput && gridColsInput && startChannelInput) {
+                    const gridSize = gridRowsInput.value * gridColsInput.value;
+                    startChannelInput.max = maxChannels - gridSize;
+                }
+            }
+        }
+        
+        // Add a log entry
+        function addLog(log) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${log.level.toLowerCase()}`;
+            logEntry.innerHTML = `
+                <span class="log-timestamp">[${log.timestamp}]</span>
+                <span class="log-message">${log.message}</span>
+            `;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+            console.log(`[${log.level}] ${log.message}`);
+        }
+        
+        // Clear all logs
+        function clearLogs() {
+            logsContainer.innerHTML = '';
+            console.log('Logs cleared');
+        }
+        
+        // Generate visualization - main function
+        async function generateVisualization() {
+            console.log('generateVisualization called');
+            
+            // Get the active tab
+            const activeTab = document.querySelector('.technique-tab.active');
+            if (!activeTab) {
+                console.error('No active tab found');
+                alert('Error: No visualization technique selected');
+                return;
+            }
+            
+            const visualizationTechnique = activeTab.getAttribute('data-target');
+            console.log('Selected visualization technique:', visualizationTechnique);
+            
+            // Check for image
+            const imageFile = imageUpload.files[0];
+            if (!imageFile) {
+                alert('Please select an image first');
+                console.error('No image selected');
+                return;
+            }
+            
+            // Show loading
+            showLoading();
+            clearLogs();
+            addLog({
+                timestamp: new Date().toLocaleTimeString(),
+                level: 'INFO',
+                message: 'Starting visualization process'
+            });
+            
+            try {
+                // Call the appropriate function based on the selected technique
+                switch(visualizationTechnique) {
+                    case 'featureMapsContent':
+                        await generateFeatureMaps(imageFile);
+                        break;
+                    case 'activationMaxContent':
+                        await generateActivationMaximization();
+                        break;
+                    case 'lrpContent':
+                        await generateLRP(imageFile);
+                        break;
+                    case 'gradCamContent':
+                        await generateGradCAM(imageFile);
+                        break;
+                    default:
+                        console.error('Unknown visualization technique:', visualizationTechnique);
+                        addLog({
+                            timestamp: new Date().toLocaleTimeString(),
+                            level: 'ERROR',
+                            message: `Unknown visualization technique: ${visualizationTechnique}`
+                        });
+                        resultsContainer.innerHTML = `
+                            <div class="p-4 mb-4 bg-red-100 text-red-700 rounded-lg">
+                                <h3 class="font-bold">Error</h3>
+                                <p>Unknown visualization technique: ${visualizationTechnique}</p>
+                            </div>
+                        `;
+                }
+            } catch (error) {
+                console.error('Error during visualization:', error);
+                addLog({
+                    timestamp: new Date().toLocaleTimeString(),
+                    level: 'ERROR',
+                    message: `Error during visualization: ${error.message}`
+                });
+                resultsContainer.innerHTML = `
+                    <div class="p-4 mb-4 bg-red-100 text-red-700 rounded-lg">
+                        <h3 class="font-bold">Error</h3>
+                        <p>Error during visualization: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Feature Maps visualization (original visualization)
+        async function generateFeatureMaps(imageFile) {
+            console.log('Generating feature maps');
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('image', imageFile);
+            
+            // Add preprocessing options
+            const useResize = document.getElementById('useResize').checked;
+            formData.append('use_resize', useResize);
+            if (useResize) {
+                formData.append('resize_strategy', document.getElementById('resizeStrategy').value);
+                formData.append('resize_size', document.getElementById('resizeSize').value);
+            }
+
+            const useCrop = document.getElementById('useCrop');
+            if (useCrop) {
+                formData.append('use_crop', useCrop.checked);
+                if (useCrop.checked) {
+                    formData.append('crop_strategy', document.getElementById('cropStrategy').value);
+                    formData.append('crop_size', document.getElementById('cropSize').value);
+                }
+            }
+
+            const useAugmentation = document.getElementById('useAugmentation');
+            if (useAugmentation) {
+                formData.append('use_augmentation', useAugmentation.checked);
+                if (useAugmentation.checked) {
+                    const augmentationOptions = {
+                        color_jitter: document.getElementById('colorJitter')?.checked || false,
+                        random_rotation: document.getElementById('randomRotation')?.checked || false,
+                        random_horizontal_flip: document.getElementById('randomHorizontalFlip')?.checked || false,
+                        random_vertical_flip: document.getElementById('randomVerticalFlip')?.checked || false,
+                        random_grayscale: document.getElementById('randomGrayscale')?.checked || false,
+                        gaussian_blur: document.getElementById('gaussianBlur')?.checked || false
+                    };
+                    formData.append('augmentation_options', JSON.stringify(augmentationOptions));
+                }
+            }
+
+            const useNormalize = document.getElementById('useNormalize');
+            if (useNormalize) {
+                formData.append('use_normalize', useNormalize.checked);
+                if (useNormalize.checked) {
+                    formData.append('normalize_strategy', document.getElementById('normalizeStrategy').value);
+                    if (document.getElementById('normalizeStrategy').value === 'custom') {
+                        const meanInputs = document.querySelectorAll('#customNormalizeOptions input[placeholder="R"], #customNormalizeOptions input[placeholder="G"], #customNormalizeOptions input[placeholder="B"]');
+                        const stdInputs = document.querySelectorAll('#customNormalizeOptions input[placeholder="R"] + input, #customNormalizeOptions input[placeholder="G"] + input, #customNormalizeOptions input[placeholder="B"] + input');
+                        
+                        const customMean = Array.from(meanInputs).map(input => parseFloat(input.value) || 0.5);
+                        const customStd = Array.from(stdInputs).map(input => parseFloat(input.value) || 0.5);
+                        
+                        formData.append('custom_mean', JSON.stringify(customMean));
+                        formData.append('custom_std', JSON.stringify(customStd));
+                    }
+                }
+            }
+
+            // Add visualization options
+            formData.append('start_channel', document.getElementById('startChannel').value);
+            formData.append('grid_rows', document.getElementById('gridRows').value);
+            formData.append('grid_cols', document.getElementById('gridCols').value);
+            formData.append('normalize_method', document.getElementById('normalizeMethod').value);
+            formData.append('colormap', document.getElementById('colormap').value);
+
+            // Add selected layers
+            const selectedLayers = Array.from(document.querySelectorAll('input[name="selectedLayers"]:checked'))
+                .map(cb => cb.value);
+            selectedLayers.forEach(layer => {
+                formData.append('selected_layers[]', layer);
+            });
+            
+            // Process request and display results
+            try {
+                const response = await fetchWithLogs('/api/visualize', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.status === 'success') {
+                    displayResults(response);
+                }
+            } catch (error) {
+                handleError(error);
+            }
+        }
+        
+        // Activation Maximization visualization
+        async function generateActivationMaximization() {
+            console.log('Starting Activation Maximization generation');
+            
+            try {
+                // Get values from form
+                const layerName = document.getElementById('amLayerSelect').value;
+                const channelIdx = document.getElementById('amChannelIdx').value;
+                const numIterations = document.getElementById('amIterations').value;
+                const learningRate = document.getElementById('amLearningRate').value;
+                
+                console.log('Activation Maximization params:', {
+                    layerName,
+                    channelIdx,
+                    numIterations,
+                    learningRate
+                });
+                
+                const formData = new FormData();
+                formData.append('layer_name', layerName);
+                formData.append('channel_idx', channelIdx);
+                formData.append('num_iterations', numIterations);
+                formData.append('learning_rate', learningRate);
+                
+                addLog({
+                    timestamp: new Date().toLocaleTimeString(),
+                    level: 'INFO',
+                    message: `Sending Activation Maximization request: layer=${layerName}, channel=${channelIdx}`
+                });
+                
+                const response = await fetchWithLogs('/api/activation_maximization', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.status === 'success') {
+                    displayActivationMaxResults(response);
+                }
+            } catch (error) {
+                console.error('Error during Activation Maximization:', error);
+                handleError(error);
+            }
+        }
+        
+        // Layer-wise Relevance Propagation visualization
+        async function generateLRP(imageFile) {
+            console.log('Starting LRP generation');
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', imageFile);
+                formData.append('layer_name', document.getElementById('lrpLayerSelect').value);
+                
+                // Determine target type (channel or class)
+                const targetType = document.querySelector('input[name="lrpTarget"]:checked').value;
+                if (targetType === 'channel') {
+                    formData.append('channel_idx', document.getElementById('lrpChannelIdx').value);
+                } else {
+                    formData.append('class_idx', document.getElementById('lrpClassIdx').value);
+                }
+                
+                addLog({
+                    timestamp: new Date().toLocaleTimeString(),
+                    level: 'INFO',
+                    message: `Sending LRP request: layer=${document.getElementById('lrpLayerSelect').value}, target=${targetType}`
+                });
+                
+                const response = await fetchWithLogs('/api/layer_relevance', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.status === 'success') {
+                    displayLRPResults(response);
+                }
+            } catch (error) {
+                console.error('Error during LRP:', error);
+                handleError(error);
+            }
+        }
+        
+        // Grad-CAM visualization
+        async function generateGradCAM(imageFile) {
+            console.log('Starting Grad-CAM generation');
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', imageFile);
+                formData.append('layer_name', document.getElementById('gradCamLayerSelect').value);
+                
+                // Add class index if provided
+                const classIdx = document.getElementById('gradCamClassIdx').value;
+                if (classIdx !== '') {
+                    formData.append('class_idx', classIdx);
+                }
+                
+                addLog({
+                    timestamp: new Date().toLocaleTimeString(),
+                    level: 'INFO',
+                    message: `Sending Grad-CAM request: layer=${document.getElementById('gradCamLayerSelect').value}, class=${classIdx || 'top prediction'}`
+                });
+                
+                const response = await fetchWithLogs('/api/grad_cam', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.status === 'success') {
+                    displayGradCAMResults(response);
+                }
+            } catch (error) {
+                console.error('Error during Grad-CAM:', error);
+                handleError(error);
+            }
+        }
+        
+        // Helper function to handle fetch with logging
+        async function fetchWithLogs(url, options) {
+            addLog({
+                timestamp: new Date().toLocaleTimeString(),
+                level: 'INFO',
+                message: `Sending request to ${url}`
+            });
+            
+            try {
+                console.log('Fetching from URL:', url, 'with options:', options);
+                const response = await fetch(url, options);
+                console.log('Raw response received:', response);
+                
+                addLog({
+                    timestamp: new Date().toLocaleTimeString(),
+                    level: 'INFO',
+                    message: `Server response received (status: ${response.status})`
+                });
+                
+                // Parse response JSON
+                const data = await response.json();
+                console.log('Parsed response data:', data);
+                
+                // Clear results area
+                resultsContainer.innerHTML = '';
+                
+                // Show logs from backend
+                if (data.logs && Array.isArray(data.logs)) {
+                    data.logs.forEach(log => addLog(log));
+                }
+                
+                // Check for errors
+                if (data.status === 'error') {
+                    console.error('Error from server:', data.error);
+                    resultsContainer.innerHTML = `
+                        <div class="p-4 mb-4 bg-red-100 text-red-700 rounded-lg">
+                            <h3 class="font-bold">Error</h3>
+                            <p>${data.error}</p>
+                        </div>
+                    `;
+                    return { status: 'error' };
+                }
+                
+                return data;
+            } catch (error) {
+                console.error('Fetch error:', error);
+                addLog({
+                    timestamp: new Date().toLocaleTimeString(),
+                    level: 'ERROR',
+                    message: `Network error: ${error.message}`
+                });
+                
+                resultsContainer.innerHTML = `
+                    <div class="p-4 mb-4 bg-red-100 text-red-700 rounded-lg">
+                        <h3 class="font-bold">Network Error</h3>
+                        <p>${error.message}</p>
+                        <p class="mt-2 text-sm">Please make sure the server is running and try again.</p>
+                    </div>
+                `;
+                
+                throw error;
+            }
+        }
+        
+        // Handle error cases
+        function handleError(error) {
+            console.error('Fetch error:', error);
+            resultsContainer.innerHTML = `
+                <div class="p-4 mb-4 text-red-700 bg-red-100 rounded-lg">
+                    <h3 class="font-bold">Error</h3>
+                    <p>Network error: ${error.message}</p>
+                </div>
+            `;
+            addLog({
+                timestamp: new Date().toLocaleTimeString(),
+                level: 'ERROR',
+                message: `Network error: ${error.message}`
+            });
+        }
+        
+        // Display feature maps visualization results
+        function displayResults(data) {
+            console.log('Displaying feature maps results:', data);
+            
+            // Store results for export
+            currentResults = data;
+            
+            // Clear existing results
+            resultsContainer.innerHTML = '';
+            
+            // Add export controls
+            addExportControls();
+            
+            // Add processing time
+            if (data.processing_time) {
+                addProcessingTime(data.processing_time);
+            }
+            
+            // Show preprocessed image if available
+            if (data.preprocessed_preview) {
+                const previewSection = document.createElement('div');
+                previewSection.className = 'mb-8 p-6 bg-white rounded-lg shadow';
+                previewSection.innerHTML = `
+                    <h2 class="mb-4 text-xl font-semibold text-gray-800">Preprocessed Image</h2>
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="flex-1">
+                            <h3 class="mb-2 text-lg font-medium text-gray-700">Input Image</h3>
+                            <img src="${imagePreview.src}" alt="Original Image" class="max-h-64 rounded-lg">
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="mb-2 text-lg font-medium text-gray-700">After Preprocessing</h3>
+                            <img src="data:image/png;base64,${data.preprocessed_preview}" alt="Preprocessed Image" class="max-h-64 rounded-lg">
+                            <p class="mt-2 text-sm text-gray-600">
+                                Final size: ${data.preprocessing_info.final_size}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                resultsContainer.appendChild(previewSection);
+            }
+            
+            // Create feature maps section
+            if (data.feature_maps && Object.keys(data.feature_maps).length > 0) {
+                const featureMapsSection = document.createElement('div');
+                featureMapsSection.className = 'mb-8';
+                
+                featureMapsSection.innerHTML = `
+                    <h2 class="mb-4 text-2xl font-semibold text-gray-800">Feature Maps</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    </div>
+                `;
+                
+                const grid = featureMapsSection.querySelector('.grid');
+                
+                // Add each layer's feature maps
+                for (const [layerName, base64Img] of Object.entries(data.feature_maps)) {
+                    const layerStats = data.feature_stats[layerName] || {};
+                    const layerInfo = data.layer_info[layerName] || {};
+                    
+                    const layerDiv = document.createElement('div');
+                    layerDiv.className = 'feature-map p-4 bg-white rounded-lg shadow-sm';
+                    
+                    layerDiv.innerHTML = `
+                        <h3 class="mb-2 text-lg font-medium text-gray-800">
+                            Layer: ${layerName} 
+                            <span class="ml-1 text-sm text-gray-500">
+                                (${layerInfo.spatial_size || ''}, ${layerInfo.channels || ''} channels)
+                            </span>
+                        </h3>
+                        <img src="data:image/png;base64,${base64Img}" alt="${layerName} feature maps" class="mb-3">
+                        <div class="mt-2 text-sm text-gray-600 grid grid-cols-2 gap-2">
+                            <div>Min: ${layerStats.min?.toFixed(4) || 'N/A'}</div>
+                            <div>Max: ${layerStats.max?.toFixed(4) || 'N/A'}</div>
+                            <div>Mean: ${layerStats.mean?.toFixed(4) || 'N/A'}</div>
+                            <div>Std: ${layerStats.std?.toFixed(4) || 'N/A'}</div>
+                        </div>
+                        <div class="mt-3 flex gap-2">
+                            <button class="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+                                    onclick="downloadImage('${base64Img}', 'feature_maps_${layerName}.png')">
+                                Download
+                            </button>
+                        </div>
+                    `;
+                    
+                    grid.appendChild(layerDiv);
+                }
+                
+                resultsContainer.appendChild(featureMapsSection);
+            }
+            
+            // Create statistics plots section
+            if (data.channel_stats_plots && Object.keys(data.channel_stats_plots).length > 0) {
+                const statsSection = document.createElement('div');
+                statsSection.className = 'mb-8';
+                
+                statsSection.innerHTML = `
+                    <h2 class="mb-4 text-2xl font-semibold text-gray-800">Channel Statistics</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    </div>
+                `;
+                
+                const grid = statsSection.querySelector('.grid');
+                
+                // Add each layer's statistics plots
+                for (const [layerName, base64Img] of Object.entries(data.channel_stats_plots)) {
+                    const layerInfo = data.layer_info[layerName] || {};
+                    
+                    const statDiv = document.createElement('div');
+                    statDiv.className = 'stat-plot p-4 bg-white rounded-lg shadow-sm';
+                    
+                    statDiv.innerHTML = `
+                        <h3 class="mb-2 text-lg font-medium text-gray-800">
+                            ${layerName} Statistics
+                            <span class="ml-1 text-sm text-gray-500">
+                                (${layerInfo.channels || ''} channels)
+                            </span>
+                        </h3>
+                        <img src="data:image/png;base64,${base64Img}" alt="${layerName} statistics" class="mb-3">
+                        <div class="mt-3">
+                            <button class="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+                                    onclick="downloadImage('${base64Img}', 'stats_${layerName}.png')">
+                                Download
+                            </button>
+                        </div>
+                    `;
+                    
+                    grid.appendChild(statDiv);
+                }
+                
+                resultsContainer.appendChild(statsSection);
+            }
+            
+            // Create heatmap overlays section
+            if (data.heatmap_overlays && Object.keys(data.heatmap_overlays).length > 0) {
+                const overlaysSection = document.createElement('div');
+                overlaysSection.className = 'mb-8';
+                
+                overlaysSection.innerHTML = `
+                    <h2 class="mb-4 text-2xl font-semibold text-gray-800">Feature Map Overlays</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    </div>
+                `;
+                
+                const grid = overlaysSection.querySelector('.grid');
+                
+                // Add each layer's heatmap overlay
+                for (const [layerName, base64Img] of Object.entries(data.heatmap_overlays)) {
+                    if (layerName === 'input') continue; // Skip input layer
+                    
+                    const overlayDiv = document.createElement('div');
+                    overlayDiv.className = 'heatmap-overlay p-4 bg-white rounded-lg shadow-sm';
+                    
+                    overlayDiv.innerHTML = `
+                        <h3 class="mb-2 text-lg font-medium text-gray-800">
+                            ${layerName} Activation Overlay
+                        </h3>
+                        <img src="data:image/png;base64,${base64Img}" alt="${layerName} overlay" class="mb-3">
+                        <div class="mt-3">
+                            <button class="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+                                    onclick="downloadImage('${base64Img}', 'overlay_${layerName}.png')">
+                                Download
+                            </button>
+                        </div>
+                    `;
+                    
+                    grid.appendChild(overlayDiv);
+                }
+                
+                resultsContainer.appendChild(overlaysSection);
+            }
+            
+            // Scroll to results
+            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Display Activation Maximization results
+        function displayActivationMaxResults(data) {
+            console.log('Displaying Activation Maximization results:', data);
+            
+            // Store results for export
+            currentResults = data;
+            
+            // Clear existing results
+            resultsContainer.innerHTML = '';
+            
+            // Add export controls
+            addExportControls();
+            
+            // Add processing time
+            if (data.processing_time) {
+                addProcessingTime(data.processing_time);
+            }
+            
+            // Create the results display
+            const resultsDiv = document.createElement('div');
+            resultsDiv.className = 'mb-8 p-6 bg-white rounded-lg shadow';
+            
+            const layerName = document.getElementById('amLayerSelect').value;
+            const channelIdx = document.getElementById('amChannelIdx').value;
+            
+            resultsDiv.innerHTML = `
+                <h2 class="mb-4 text-2xl font-semibold text-gray-800">Activation Maximization Results</h2>
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium">Layer: ${layerName}, Channel: ${channelIdx}</h3>
+                    <p class="text-gray-600">The image that maximally activates this specific filter</p>
+                </div>
+                
+                <div class="flex flex-col gap-6 md:flex-row">
+                    <div class="flex-1">
+                        <h4 class="mb-2 text-base font-medium">Generated Image</h4>
+                        <img src="data:image/png;base64,${data.generated_image}" alt="Generated image" class="rounded-lg">
+                        <button class="mt-2 px-4 py-1 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+                                onclick="downloadImage('${data.generated_image}', 'activation_max_${layerName}_ch${channelIdx}.png')">
+                            Download Image
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1">
+                        <h4 class="mb-2 text-base font-medium">Optimization Progress</h4>
+                        <img src="data:image/png;base64,${data.visualization}" alt="Activation history" class="rounded-lg">
+                    </div>
+                </div>
+            `;
+            
+            resultsContainer.appendChild(resultsDiv);
+            
+            // Scroll to results
+            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Display LRP results
+        function displayLRPResults(data) {
+            console.log('Displaying LRP results:', data);
+            
+            // Store results for export
+            currentResults = data;
+            
+            // Clear existing results
+            resultsContainer.innerHTML = '';
+            
+            // Add export controls
+            addExportControls();
+            
+            // Add processing time
+            if (data.processing_time) {
+                addProcessingTime(data.processing_time);
+            }
+            
+            // Create the results display
+            const resultsDiv = document.createElement('div');
+            resultsDiv.className = 'mb-8 p-6 bg-white rounded-lg shadow';
+            
+            resultsDiv.innerHTML = `
+                <h2 class="mb-4 text-2xl font-semibold text-gray-800">Layer-wise Relevance Propagation Results</h2>
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium">Layer: ${data.layer_name}, Target: ${data.target_description}</h3>
+                    <p class="text-gray-600">Showing which input pixels contribute most to the target activation</p>
+                </div>
+                
+                <div class="flex flex-col gap-6 md:flex-row">
+                    <div class="flex-1">
+                        <h4 class="mb-2 text-base font-medium">Attribution Map</h4>
+                        <img src="data:image/png;base64,${data.attribution_map}" alt="LRP attribution map" class="rounded-lg">
+                    </div>
+                    
+                    <div class="flex-1">
+                        <h4 class="mb-2 text-base font-medium">Overlay on Input Image</h4>
+                        <img src="data:image/png;base64,${data.overlay}" alt="LRP overlay" class="rounded-lg">
+                        <button class="mt-2 px-4 py-1 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+                                onclick="downloadImage('${data.overlay}', 'lrp_overlay_${data.layer_name}.png')">
+                            Download Overlay
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            resultsContainer.appendChild(resultsDiv);
+            
+            // Scroll to results
+            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Display Grad-CAM results
+        function displayGradCAMResults(data) {
+            console.log('Displaying Grad-CAM results:', data);
+            
+            // Store results for export
+            currentResults = data;
+            
+            // Clear existing results
+            resultsContainer.innerHTML = '';
+            
+            // Add export controls
+            addExportControls();
+            
+            // Add processing time
+            if (data.processing_time) {
+                addProcessingTime(data.processing_time);
+            }
+            
+            // Create the results display
+            const resultsDiv = document.createElement('div');
+            resultsDiv.className = 'mb-8 p-6 bg-white rounded-lg shadow';
+            
+            resultsDiv.innerHTML = `
+                <h2 class="mb-4 text-2xl font-semibold text-gray-800">Grad-CAM Results</h2>
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium">Layer: ${data.layer_name}, Class: ${data.class_info.class_name}</h3>
+                    <p class="text-gray-600">
+                        Confidence: ${(data.class_info.confidence * 100).toFixed(2)}%
+                        | Class ID: ${data.class_info.class_id}
+                    </p>
+                </div>
+                
+                <div class="mb-6">
+                    <img src="data:image/png;base64,${data.visualization}" alt="Grad-CAM visualization" class="rounded-lg">
+                </div>
+                
+                <div class="text-center">
+                    <h4 class="mb-2 text-base font-medium">High-resolution Overlay</h4>
+                    <img src="data:image/png;base64,${data.overlay}" alt="Grad-CAM overlay" class="mx-auto max-h-96 rounded-lg">
+                    <button class="mt-2 px-4 py-1 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+                            onclick="downloadImage('${data.overlay}', 'gradcam_class${data.class_info.class_id}_${data.layer_name}.png')">
+                        Download Overlay
+                    </button>
+                </div>
+            `;
+            
+            resultsContainer.appendChild(resultsDiv);
+            
+            // Scroll to results
+            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Add export controls to the results container
+        function addExportControls() {
+            const exportControls = document.createElement('div');
+            exportControls.className = 'bg-white rounded-lg shadow-sm p-4 mb-4';
+            exportControls.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-gray-800">Export Options</h3>
+                    <div class="space-x-2">
+                        <button onclick="exportAsJSON()" class="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600">
+                            Export as JSON
+                        </button>
+                        <button onclick="exportAsCSV()" class="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600">
+                            Export as CSV
+                        </button>
+                        <button onclick="downloadAllImages()" class="px-4 py-2 text-white bg-purple-500 rounded hover:bg-purple-600">
+                            Download Images
+                        </button>
+                    </div>
+                </div>
+            `;
+            resultsContainer.appendChild(exportControls);
+        }
+        
+        // Add processing time information
+        function addProcessingTime(processingTime) {
+            const timeInfo = document.createElement('div');
+            timeInfo.className = 'bg-white rounded-lg shadow-sm p-4 mb-4';
+            timeInfo.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Processing Time:</span>
+                    <span class="font-mono">${processingTime.toFixed(2)} seconds</span>
+                </div>
+            `;
+            resultsContainer.appendChild(timeInfo);
+        }
+        
+        // Download a base64 image
+        function downloadImage(base64Data, filename) {
+            const link = document.createElement('a');
+            link.href = `data:image/png;base64,${base64Data}`;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Export results as JSON
+        function exportAsJSON() {
+            if (!currentResults) {
+                alert('No results available to export');
+                return;
+            }
+            
+            // Create a simplified version of the results for export
+            // Remove large base64 images to keep the file size manageable
+            const exportData = { ...currentResults };
+            
+            // Remove large base64 images
+            delete exportData.feature_maps;
+            delete exportData.channel_stats_plots;
+            delete exportData.heatmap_overlays;
+            delete exportData.preprocessed_preview;
+            delete exportData.visualization;
+            delete exportData.overlay;
+            delete exportData.generated_image;
+            delete exportData.attribution_map;
+            
+            // Create a Blob with the JSON data
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            
+            // Create a link and trigger download
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `resnet_visualization_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Export results as CSV
+        function exportAsCSV() {
+            if (!currentResults) {
+                alert('No results available to export');
+                return;
+            }
+            
+            let csvContent = "";
+            
+            // Function to convert object to CSV rows
+            function objectToCSV(obj, prefix = '') {
+                let rows = [];
+                
+                for (const [key, value] of Object.entries(obj)) {
+                    const fullKey = prefix ? `${prefix}.${key}` : key;
+                    
+                    if (typeof value === 'object' && value !== null && !Array.isArray(value) && 
+                        !value.toString().startsWith('data:image')) {
+                        // Recursively process nested objects
+                        rows = rows.concat(objectToCSV(value, fullKey));
+                    } else if (Array.isArray(value)) {
+                        // Handle arrays
+                        rows.push(`${fullKey},${value.join(',')}`);
+                    } else if (typeof value !== 'string' || !value.startsWith('data:image')) {
+                        // Skip base64 images
+                        rows.push(`${fullKey},${value}`);
+                    }
+                }
+                
+                return rows;
+            }
+            
+            // Add CSV header and rows
+            const exportData = { ...currentResults };
+            
+            // Remove large base64 images
+            delete exportData.feature_maps;
+            delete exportData.channel_stats_plots;
+            delete exportData.heatmap_overlays;
+            delete exportData.preprocessed_preview;
+            delete exportData.visualization;
+            delete exportData.overlay;
+            delete exportData.generated_image;
+            delete exportData.attribution_map;
+            
+            csvContent = "key,value\n";
+            csvContent += objectToCSV(exportData).join('\n');
+            
+            // Create a Blob with the CSV data
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            
+            // Create a link and trigger download
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `resnet_visualization_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Download all images as a ZIP file
+        function downloadAllImages() {
+            if (!currentResults) {
+                alert('No results available to export');
+                return;
+            }
+            
+            // Create a new JSZip instance
+            const zip = new JSZip();
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            
+            // Function to add a base64 image to the zip
+            function addImageToZip(base64Data, filename) {
+                if (!base64Data) return;
+                
+                // Convert base64 to binary
+                const binary = atob(base64Data);
+                const array = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    array[i] = binary.charCodeAt(i);
+                }
+                
+                // Add to zip
+                zip.file(filename, array);
+            }
+            
+            // Add feature maps to zip
+            if (currentResults.feature_maps) {
+                const featureMapsFolder = zip.folder("feature_maps");
+                for (const [layerName, base64Img] of Object.entries(currentResults.feature_maps)) {
+                    addImageToZip(base64Img, `feature_maps/feature_maps_${layerName}.png`);
+                }
+            }
+            
+            // Add statistics plots to zip
+            if (currentResults.channel_stats_plots) {
+                const statsFolder = zip.folder("statistics");
+                for (const [layerName, base64Img] of Object.entries(currentResults.channel_stats_plots)) {
+                    addImageToZip(base64Img, `statistics/stats_${layerName}.png`);
+                }
+            }
+            
+            // Add heatmap overlays to zip
+            if (currentResults.heatmap_overlays) {
+                const overlaysFolder = zip.folder("overlays");
+                for (const [layerName, base64Img] of Object.entries(currentResults.heatmap_overlays)) {
+                    if (layerName === 'input') continue;
+                    addImageToZip(base64Img, `overlays/overlay_${layerName}.png`);
+                }
+            }
+            
+            // Add other visualization types based on which technique was used
+            if (currentResults.visualization) {
+                addImageToZip(currentResults.visualization, "visualization.png");
+            }
+            
+            if (currentResults.overlay) {
+                addImageToZip(currentResults.overlay, "overlay.png");
+            }
+            
+            if (currentResults.generated_image) {
+                addImageToZip(currentResults.generated_image, "generated_image.png");
+            }
+            
+            if (currentResults.attribution_map) {
+                addImageToZip(currentResults.attribution_map, "attribution_map.png");
+            }
+            
+            if (currentResults.preprocessed_preview) {
+                addImageToZip(currentResults.preprocessed_preview, "preprocessed_preview.png");
+            }
+            
+            // Generate the zip file
+            zip.generateAsync({ type: "blob" })
+                .then(function(content) {
+                    // Create a link and trigger download
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(content);
+                    link.download = `resnet_visualization_images_${timestamp}.zip`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+        }
+        
+        // Show info modal
+        function showInfo(topic) {
+            const modal = document.getElementById('infoModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+            
+            // Set content based on topic
+            switch(topic) {
+                case 'resize':
+                    modalTitle.textContent = 'Image Resizing Options';
+                    modalContent.innerHTML = `
+                        <p>Resizing changes the image dimensions before processing. Options include:</p>
+                        <ul class="list-disc pl-5 mt-2">
+                            <li><strong>Simple Resize:</strong> Directly resizes to target dimensions, may distort aspect ratio</li>
+                            <li><strong>Preserve Aspect Ratio:</strong> Maintains aspect ratio by scaling the shortest side</li>
+                            <li><strong>Pad and Resize:</strong> Adds padding before resizing to prevent distortion</li>
+                        </ul>
+                    `;
+                    break;
+                case 'crop':
+                    modalTitle.textContent = 'Image Cropping Options';
+                    modalContent.innerHTML = `
+                        <p>Cropping extracts a region from the resized image:</p>
+                        <ul class="list-disc pl-5 mt-2">
+                            <li><strong>Center Crop:</strong> Takes a center-aligned square region</li>
+                            <li><strong>Random Crop:</strong> Takes a random square region (useful for data augmentation)</li>
+                            <li><strong>Five Crop:</strong> Creates five crops: center, top-left, top-right, bottom-left, bottom-right</li>
+                            <li><strong>Ten Crop:</strong> Creates ten crops (five crops + horizontal flips)</li>
+                        </ul>
+                        <p class="mt-2">Standard ImageNet preprocessing uses 224×224 center crop.</p>
+                    `;
+                    break;
+                case 'normalize':
+                    modalTitle.textContent = 'Normalization Options';
+                    modalContent.innerHTML = `
+                        <p>Normalization scales pixel values to improve training stability:</p>
+                        <ul class="list-disc pl-5 mt-2">
+                            <li><strong>ImageNet:</strong> Uses mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]</li>
+                            <li><strong>Simple:</strong> Centers values around 0.5 with standard deviation of 0.5</li>
+                            <li><strong>Custom:</strong> Define your own mean and standard deviation values</li>
+                        </ul>
+                        <p class="mt-2">Normalization is crucial for models pre-trained on normalized data.</p>
+                    `;
+                    break;
+                case 'augmentation':
+                    modalTitle.textContent = 'Data Augmentation Options';
+                    modalContent.innerHTML = `
+                        <p>Data augmentation creates variations of the input image:</p>
+                        <ul class="list-disc pl-5 mt-2">
+                            <li><strong>Color Jitter:</strong> Randomly adjusts brightness, contrast, saturation, and hue</li>
+                            <li><strong>Random Rotation:</strong> Rotates the image by a random angle</li>
+                            <li><strong>Horizontal/Vertical Flip:</strong> Mirror the image along horizontal or vertical axis</li>
+                            <li><strong>Random Grayscale:</strong> Randomly converts image to grayscale</li>
+                            <li><strong>Gaussian Blur:</strong> Applies Gaussian blur with random intensity</li>
+                        </ul>
+                        <p class="mt-2">Note: These transformations will affect the visualization of feature maps.</p>
+                    `;
+                    break;
+                // Add other topics as needed
+                default:
+                    modalTitle.textContent = 'Information';
+                    modalContent.textContent = 'No information available for this topic.';
+            }
+            
+            // Display modal
+            modal.style.display = 'block';
+            
+            // Setup close button
+            const closeBtn = modal.querySelector('.close-modal');
+            closeBtn.onclick = function() {
+                modal.style.display = 'none';
+            };
+            
+            // Close when clicking outside
+            window.onclick = function(event) {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            };
+        }
+    </script>
+</body>
+</html> 
