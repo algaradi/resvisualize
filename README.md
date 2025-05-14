@@ -25,15 +25,16 @@ A comprehensive visualization tool for exploring and understanding how ResNet50 
   - Various colormaps for different visualization preferences
     
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(10).png)
-![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(1).png)
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(2).png)
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(3).png)
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(1).png)
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(4).png)
-![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(5).png)
-![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(6).png)
-![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(7).png)
-![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(8).png)
+
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(9).png)
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(5).png) ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(6).png)
+
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(7).png)![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(8).png)
+
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(11).png)
 ### Analysis Tools
 - Channel statistics and distribution visualizations
