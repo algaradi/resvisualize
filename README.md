@@ -30,16 +30,6 @@ A comprehensive visualization tool for exploring and understanding how ResNet50 
 - Export options (JSON, CSV, image downloads)
 - Detailed processing logs
 
-[图片]
-[图片]
-[图片]
-[图片]
-[图片]
-[图片]
-[图片]
-[图片]
-[图片]
-[图片]
 ## Installation
 
 1. Clone the repository:
