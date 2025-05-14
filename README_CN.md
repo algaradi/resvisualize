@@ -28,6 +28,19 @@
 - 导出为 JSON/CSV 数据
 - 下载所有生成的可视化图像
 
+  ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(10).png)
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(2).png)
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(3).png)
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(1).png)
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(4).png)
+
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(9).png)
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(5).png) ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(6).png)
+
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(7).png)![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(8).png)
+
+![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(11).png)
+
 ## 技术栈
 - **后端**：Python、Flask、PyTorch
 - **前端**：HTML、CSS (Tailwind)、JavaScript
