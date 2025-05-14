@@ -47,7 +47,7 @@ A comprehensive visualization tool for exploring and understanding how ResNet50 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/algaradi/ResVisualize.git
+git clone https://github.com/algaradi/resvisualize.git
 cd ResVisualize
 ```
 
