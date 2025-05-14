@@ -23,7 +23,12 @@ A comprehensive visualization tool for exploring and understanding how ResNet50 
   - Channel selection across all network layers
   - Multiple normalization methods for visualization
   - Various colormaps for different visualization preferences
-    
+### Analysis Tools
+- Channel statistics and distribution visualizations
+- Feature map overlays on original images
+- Export options (JSON, CSV, image downloads)
+- Detailed processing logs
+  
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(10).png)
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(2).png)
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(3).png)
@@ -36,11 +41,7 @@ A comprehensive visualization tool for exploring and understanding how ResNet50 
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(7).png)![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(8).png)
 
 ![image](https://github.com/algaradi/resvisualize/blob/main/preview/image(11).png)
-### Analysis Tools
-- Channel statistics and distribution visualizations
-- Feature map overlays on original images
-- Export options (JSON, CSV, image downloads)
-- Detailed processing logs
+
 
 ## Installation
 
