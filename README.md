@@ -10,6 +10,7 @@ A comprehensive visualization tool for exploring and understanding how ResNet50 
 - **Layer-wise Relevance Propagation (LRP)**: Understand which input pixels contribute most to specific activations
 - **Grad-CAM**: Visualize important regions for classification decisions
 
+
 ### Advanced Customization Options
 - **Image Preprocessing**:
   - Resize with multiple strategies (simple, preserve aspect ratio, pad and resize)
@@ -29,6 +30,16 @@ A comprehensive visualization tool for exploring and understanding how ResNet50 
 - Export options (JSON, CSV, image downloads)
 - Detailed processing logs
 
+[图片]
+[图片]
+[图片]
+[图片]
+[图片]
+[图片]
+[图片]
+[图片]
+[图片]
+[图片]
 ## Installation
 
 1. Clone the repository:
